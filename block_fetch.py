@@ -17,7 +17,7 @@ def fetch(url):
     # Page is now downloaded.
     urls = set(re.findall(r'''(?i)href=["']?([^\s"'<>]+)''',
                    response.split(b'\r\n\r\n', 1)[1].decode('utf-8')))
-    print urls
+    print(urls)
 
 
 if __name__ == '__main__':

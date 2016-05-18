@@ -14,6 +14,7 @@ class Fetcher:
 
     def __init__(self, url):
         self.url = url
+        print("start fetching {}".format(url))
         self.response = b''
         self.sock = None
 
@@ -27,9 +28,9 @@ class Fetcher:
         selector.register(self.sock.fileno(), EVENT_WRITE, self.connected)
 
     def connected(self, key, mask):
-        print 'connected'
+        # print('connected')
         selector.unregister(key.fd)
-        request = 'get {} HTTP/1.0\r\nHost: xkcd.com\r\n\r\n'.format(self.url)
+        request = 'GET {} HTTP/1.0\r\nHost: xkcd.com\r\n\r\n'.format(self.url)
         self.sock.send(request.encode('ascii'))
         selector.register(key.fd, EVENT_READ, self.read_response)
 
@@ -40,6 +41,7 @@ class Fetcher:
             self.response += chunk
         else:
             selector.unregister(key.fd)
+            # print(self.response)
             links = self.parse_links()
             for link in links.difference(urls_seen):
                 urls_todo.add(link)
@@ -50,7 +52,7 @@ class Fetcher:
                 stopped = True
 
     def _is_html(self):
-        headers, body = self.response.split(b'\r\n\r\n')
+        headers, body = self.response.split(b'\r\n\r\n', 1)
         headers = dict(head.split(': ') for head in headers.decode().split('\r\n')[1:])
         return headers.get('Content-Type', '').startswith('text/html')
 
@@ -60,7 +62,7 @@ class Fetcher:
 
     def parse_links(self):
         if not self.response:
-            print 'error: {}'.format(self.url)
+            print('error: {}'.format(self.url))
             return set()
         if not self._is_html():
             return set()
@@ -89,3 +91,4 @@ def loop():
 if __name__ == '__main__':
     Fetcher('/').fetch()
     loop()
+    print('total fetched %d pages' % len(urls_seen))
