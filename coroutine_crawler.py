@@ -3,11 +3,13 @@ from selectors import *
 import re
 import socket
 import urllib.parse
+import time
 
 selector = DefaultSelector()
 urls_todo = set(['/'])
 urls_seen = set(['/'])
 stopped = False
+concurrency_achieved = 0
 
 
 class Future:
@@ -35,7 +37,7 @@ class Task:
 
     def step(self, future):
         try:
-            next_future = self.coro.send(future)
+            next_future = self.coro.send(future.result)
         except StopIteration:
             return
         next_future.add_callback(self.step)
@@ -44,10 +46,13 @@ class Task:
 class Fetcher():
 
     def __init__(self, url):
+        print("start fetching {}".format(url))
         self.url = url
         self.response = b''
 
     def fetch(self):
+        global concurrency_achieved
+        concurrency_achieved = max(concurrency_achieved, len(urls_todo))
         sock = socket.socket()
         sock.setblocking(False)
         try:
@@ -81,7 +86,7 @@ class Fetcher():
                 links = self.parse_links()
                 for link in links.difference(urls_seen):
                     urls_todo.add(link)
-                    Fetcher(link).fetch()
+                    Task(Fetcher(link).fetch())
                 urls_seen.update(links)
                 urls_todo.remove(self.url)
                 if not urls_todo:
@@ -90,7 +95,8 @@ class Fetcher():
 
     def _is_html(self):
         headers, body = self.response.split(b'\r\n\r\n', 1)
-        headers = dict(head.split(': ') for head in headers.decode().split('\r\n')[1:])
+        headers = dict(head.split(': ')
+                       for head in headers.decode().split('\r\n')[1:])
         return headers.get('Content-Type', '').startswith('text/html')
 
     def body(self):
@@ -126,7 +132,9 @@ def loop():
             callback()
 
 if __name__ == '__main__':
+    start = time.time()
     fetcher = Fetcher('/')
     Task(fetcher.fetch())
     loop()
-    print('total fetched %d pages' % len(urls_seen))
+    print('{} URLs fetched in {:.1f} seconds, achieved concurrency = {}'.format(
+        len(urls_seen), time.time() - start, concurrency_achieved))

@@ -3,11 +3,13 @@ from selectors import *
 import re
 import socket
 import urllib.parse
+import time
 
 selector = DefaultSelector()
 urls_todo = set(['/'])
 urls_seen = set(['/'])
 stopped = False
+concurrency_achieved = 0
 
 
 class Fetcher:
@@ -19,6 +21,8 @@ class Fetcher:
         self.sock = None
 
     def fetch(self):
+        global concurrency_achieved
+        concurrency_achieved = max(concurrency_achieved, len(urls_todo))
         self.sock = socket.socket()
         self.sock.setblocking(False)
         try:
@@ -89,6 +93,8 @@ def loop():
             callback(event_key, event_mask)
 
 if __name__ == '__main__':
+    start = time.time()
     Fetcher('/').fetch()
     loop()
-    print('total fetched %d pages' % len(urls_seen))
+    print('{} URLs fetched in {:.1f} seconds, achieved concurrency = {}'.format(
+        len(urls_seen), time.time() - start, concurrency_achieved))
